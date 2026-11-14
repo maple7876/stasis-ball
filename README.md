@@ -1,4 +1,4 @@
-Stasis Ball
+## Stasis Ball
 Stasis Ball is a physics-based arcade puzzle game made for Hack
 Club Haven. Guide a moving ball through each level, avoid hazards, and
 reach the green goal. Use Stasis to stop the ball, build up a direction,
