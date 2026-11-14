@@ -1,9 +1,9 @@
-## Stasis Ball
+# Stasis Ball
 Stasis Ball is a physics-based arcade puzzle game made for Hack
 Club Haven. Guide a moving ball through each level, avoid hazards, and
 reach the green goal. Use Stasis to stop the ball, build up a direction,
 and launch it toward the next opening.
-How to Play
+### How to Play
 1. The ball moves automatically.
 2. Press Space to activate Stasis and pause the ball.
 3. While Stasis is active, use the arrow keys or WASD to build
@@ -14,7 +14,7 @@ How to Play
 6. Choose one of the three upgrades offered after each completed level
    by pressing 1, 2, or 3.
 Avoid the red hazards. Touching one restarts the current level.
-Controls
+### Controls
   Key                                 Action
   Space                             Activate or release Stasis
 
@@ -61,14 +61,10 @@ CSS or JavaScript files.
 - Level generation creates additional obstacle layouts after the
   15 designed levels.
 - Game loop repeatedly updates the game and redraws the canvas.
-Running the Game
+## Running the Game
 1. Keep stasis-ball-prototype.html on your computer.
 2. Open the file in a modern web browser.
-3. Play using the keyboard controls above.
-The game code references optional MP3 audio files, but those files are
-not included with this project. The game can still be played without
-them; audio will not be available unless the referenced sound files are
-added.
+3. Enjoy!
 Credits
 Created by Aaqib Mohammed and Olaf Rozner for Hack Club
 Haven.
