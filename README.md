@@ -42,7 +42,7 @@ Avoid hazards. If you touch one you will restart the level.
 
 
 
-At times you might have to Think Outside of the box to solve the level. Break the game, abuse the physics engine, and find ways to progress through levels. There is no right answer and there is no limit to how creative you can be. Try experimenting with the Stasis ability, momentum, and collisions. If you can reach the end it counts! Each level is unique to each person.
+At times you might have to think outside of the box to solve the level. Break the game with quantum stasis and find ways to progress through nearly impossible levels. There is no right answer and no limit to how creative you can be. Try experimenting with Stasis, momentum, and collisions. If you can reach the end it counts! Due to our infinite javascript generation, each level comes out differently, so you'll have to find a way to beat the level by yourself. Have fun!
 
 
 
@@ -62,7 +62,7 @@ Spacebar
 
 
 
-End Stasis
+Start/End Stasis
 
 
 
@@ -142,11 +142,11 @@ More control over spin.
 
 
 
-Larger capture radius on goal.
+Larger capture radius on the goal.
 
 
 
-The upgrades will be randomised each level.
+The upgrades will be randomized each level.
 
 
 
