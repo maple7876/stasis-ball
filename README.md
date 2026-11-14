@@ -211,5 +211,3 @@ Have fun!
 
 
 Made by Aaqib Mohammed. Olaf Rozner for Hack Club Haven.
-
-Want a se
