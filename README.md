@@ -1,13 +1,12 @@
 # Stasis Ball
 
-
+Itch.io link: https://prototype786.itch.io/stasis-ball
 
 Stasis ball is a physics arcade puzzle game. Navigate a rolling ball to reach the end of each level while avoiding hazards. Use the stasis ability to freeze the ball and give it a direction.
 
 
 
 # How To Play
-
 
 
 Move the ball.
