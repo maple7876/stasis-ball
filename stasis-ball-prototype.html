@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stasis Ball - Advanced with Full Audio</title>
+    <style>
+        body {
+            margin: 0;
+            background-color: #121218;
+            color: #ffffff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+        canvas {
+            background-color: #1e1e28;
+            border: 3px solid #3a3a4d;
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        #ui {
+            margin-top: 15px;
+            text-align: center;
+            color: #a0a0b8;
+            font-size: 14px;
+        }
+        .highlight {
+            color: #ffd700;
+            font-weight: bold;
+        }
+
+        /* Layout stays intentionally minimal; these classes only improve clarity. */
+        #ui {
+            line-height: 1.8;
+            user-select: none;
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
+    <div id="ui">
+        <span class="highlight">[SPACE]</span> Stasis &nbsp;|&nbsp; 
+        <span class="highlight">[ARROW KEYS / WASD]</span> Spam to charge &nbsp;|&nbsp; 
+        <span class="highlight">[R]</span> Restart Level
+    </div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+// Game States: 'PLAYING', 'UPGRADE', 'GAMEOVER', 'WIN'
+let gameState = 'PLAYING';
+let currentLevel = 0;
+let endlessMode = true;
+let generatedLevelCount = 0;
+let runSeed = Math.floor(Math.random() * 1_000_000);
+let levelBest = 1;
+
+// --- AUDIO SETUP ---
+const bgm = new Audio('bgm.mp3');
+bgm.loop = true;
+bgm.volume = 0.25;
+
+const rollSound = new Audio('roll.mp3');
+rollSound.loop = true;
+rollSound.volume = 0.3;
+
+const stasisSound = new Audio('stasis.mp3');
+stasisSound.volume = 0.4;
+
+const launchSound = new Audio('launch.mp3');
+launchSound.volume = 0.5;
+
+const winSound = new Audio('win.mp3');
+winSound.volume = 0.5;
+
+const bounceSound = new Audio('sound.mp3');
+bounceSound.volume = 0.4;
+
+let audioStarted = false;
+function startAudio() {
+    if (!audioStarted) {
+        bgm.play().catch(e => {});
+        audioStarted = true;
+    }
+}
+
+function playBounce() {
+    bounceSound.currentTime = 0;
+    bounceSound.play().catch(e => {});
+}
+
+// Upgradable Stats
+let maxStasisTime = 60; // 1 second at 60fps
+let stasisCooldownMax = 120; // 2 seconds at 60fps
+let stasisCooldownTimer = 0;
+let forceMultiplier = 1.8;
+
+let isStasis = false;
+let stasisTimer = 0;
+let shakeAmount = 0;
+
+// Ball Properties
+const ball = {
+    x: 100,
+    y: 300,
+    radius: 14,
+    vx: 3,
+    vy: 2,
+    friction: 0.995,
+    minSpeed: 2,
+    maxSpeed: 24
+};
+
+// Stasis Accumulation Vector
+let chargeX = 0;
+let chargeY = 0;
+let hitCount = 0;
+
+// Motion state: small effects that use the existing visual palette.
+let frame = 0;
+let particles = [];
+let goalPulse = 0;
+let lastBallX = ball.x;
+let lastBallY = ball.y;
+let trailPoints = [];
+let collisionFlash = 0;
+
+// 10 Challenging Levels (Levels 5 and 10 fully fixed and playable)
+const levels = [
+    {
+        start: { x: 100, y: 300, vx: 3, vy: 1 },
+        goal: { x: 700, y: 300, radius: 22 },
+        walls: [
+            { x: 350, y: 120, w: 35, h: 360 }
+        ],
+        hazards: []
+    },
+    {
+        start: { x: 100, y: 100, vx: 3, vy: 3 },
+        goal: { x: 700, y: 500, radius: 22 },
+        walls: [
+            { x: 220, y: 0, w: 25, h: 380 },
+            { x: 520, y: 220, w: 25, h: 380 }
+        ],
+        hazards: [
+            { x: 350, y: 270, w: 40, h: 40 }
+        ]
+    },
+    {
+        start: { x: 400, y: 520, vx: 4, vy: 0 },
+        goal: { x: 400, y: 80, radius: 22 },
+        walls: [
+            { x: 120, y: 380, w: 560, h: 22 },
+            { x: 120, y: 200, w: 560, h: 22 }
+        ],
+        hazards: [
+            { x: 80, y: 290, w: 100, h: 20 },
+            { x: 620, y: 290, w: 100, h: 20 }
+        ]
+    },
+    {
+        start: { x: 80, y: 80, vx: 5, vy: 2 },
+        goal: { x: 720, y: 520, radius: 22 },
+        walls: [
+            { x: 200, y: 120, w: 400, h: 25 },
+            { x: 200, y: 460, w: 400, h: 25 },
+            { x: 380, y: 220, w: 25, h: 180 }
+        ],
+        hazards: [
+            { x: 220, y: 150, w: 40, h: 20 },
+            { x: 540, y: 430, w: 40, h: 20 }
+        ]
+    },
+    // Level 5 (Fixed)
+    {
+        start: { x: 100, y: 500, vx: 4, vy: -2 },
+        goal: { x: 700, y: 100, radius: 22 },
+        walls: [
+            { x: 300, y: 150, w: 20, h: 300 },
+            { x: 500, y: 150, w: 20, h: 300 }
+        ],
+        hazards: [
+            { x: 380, y: 280, w: 40, h: 40 }
+        ]
+    },
+    // Level 6
+    {
+        start: { x: 400, y: 300, vx: 4, vy: 3 },
+        goal: { x: 400, y: 100, radius: 22 },
+        walls: [
+            { x: 200, y: 200, w: 400, h: 20 },
+            { x: 200, y: 400, w: 400, h: 20 }
+        ],
+        hazards: [
+            { x: 300, y: 230, w: 30, h: 30 },
+            { x: 470, y: 230, w: 30, h: 30 },
+            { x: 385, y: 350, w: 30, h: 30 }
+        ]
+    },
+    // Level 7
+    {
+        start: { x: 80, y: 300, vx: 5, vy: 0 },
+        goal: { x: 720, y: 300, radius: 22 },
+        walls: [
+            { x: 250, y: 100, w: 25, h: 220 },
+            { x: 250, y: 420, w: 25, h: 180 },
+            { x: 525, y: 0, w: 25, h: 180 },
+            { x: 525, y: 280, w: 25, h: 320 }
+        ],
+        hazards: [
+            { x: 375, y: 275, w: 50, h: 50 }
+        ]
+    },
+    // Level 8
+    {
+        start: { x: 400, y: 520, vx: 3, vy: -3 },
+        goal: { x: 400, y: 80, radius: 22 },
+        walls: [
+            { x: 150, y: 180, w: 150, h: 20 },
+            { x: 500, y: 180, w: 150, h: 20 },
+            { x: 150, y: 400, w: 150, h: 20 },
+            { x: 500, y: 400, w: 150, h: 20 }
+        ],
+        hazards: [
+            { x: 375, y: 165, w: 50, h: 50 },
+            { x: 375, y: 385, w: 50, h: 50 }
+        ]
+    },
+    // Level 9
+    {
+        start: { x: 100, y: 100, vx: 6, vy: 4 },
+        goal: { x: 700, y: 500, radius: 22 },
+        walls: [
+            { x: 0, y: 200, w: 600, h: 20 },
+            { x: 200, y: 400, w: 600, h: 20 }
+        ],
+        hazards: [
+            { x: 280, y: 150, w: 30, h: 30 },
+            { x: 500, y: 240, w: 30, h: 30 },
+            { x: 280, y: 430, w: 30, h: 30 }
+        ]
+    },
+    // Level 10 (Fixed)
+    {
+        start: { x: 100, y: 520, vx: 4, vy: -3 },
+        goal: { x: 700, y: 80, radius: 22 },
+        walls: [
+            { x: 220, y: 180, w: 25, h: 300 },
+            { x: 400, y: 120, w: 25, h: 300 },
+            { x: 580, y: 180, w: 25, h: 300 }
+        ],
+        hazards: [
+            { x: 300, y: 280, w: 40, h: 40 },
+            { x: 480, y: 280, w: 40, h: 40 }
+        ]
+    },
+
+    // Levels 11–15: moving obstacles add timing and route-planning challenges.
+    {
+        start: { x: 80, y: 300, vx: 4, vy: 1 },
+        goal: { x: 720, y: 300, radius: 22 },
+        walls: [
+            { x: 220, y: 0, w: 22, h: 230 },
+            { x: 220, y: 370, w: 22, h: 230 },
+            { x: 430, y: 120, w: 22, h: 360, vy: 2, minY: 80, maxY: 160 },
+            { x: 620, y: 0, w: 22, h: 230 },
+            { x: 620, y: 370, w: 22, h: 230 }
+        ],
+        hazards: [
+            { x: 330, y: 270, w: 38, h: 38, vx: 2.4, minX: 280, maxX: 460 },
+            { x: 520, y: 280, w: 38, h: 38, vy: 2, minY: 220, maxY: 340 }
+        ]
+    },
+    {
+        start: { x: 100, y: 520, vx: 4, vy: -2 },
+        goal: { x: 700, y: 80, radius: 22 },
+        walls: [
+            { x: 180, y: 180, w: 440, h: 20 },
+            { x: 180, y: 400, w: 440, h: 20 },
+            { x: 390, y: 220, w: 20, h: 170, vx: 2, minX: 320, maxX: 470 }
+        ],
+        hazards: [
+            { x: 260, y: 280, w: 42, h: 42, vx: 2.2, minX: 240, maxX: 500 },
+            { x: 500, y: 280, w: 42, h: 42, vx: -2.2, minX: 240, maxX: 500 }
+        ]
+    },
+    {
+        start: { x: 400, y: 520, vx: 3, vy: -3 },
+        goal: { x: 400, y: 80, radius: 22 },
+        walls: [
+            { x: 100, y: 190, w: 250, h: 20 },
+            { x: 450, y: 190, w: 250, h: 20 },
+            { x: 100, y: 390, w: 250, h: 20 },
+            { x: 450, y: 390, w: 250, h: 20 },
+            { x: 385, y: 230, w: 30, h: 140, vy: 2.3, minY: 220, maxY: 260 }
+        ],
+        hazards: [
+            { x: 180, y: 280, w: 38, h: 38, vy: 2.5, minY: 240, maxY: 320 },
+            { x: 580, y: 280, w: 38, h: 38, vy: -2.5, minY: 240, maxY: 320 }
+        ]
+    },
+    {
+        start: { x: 80, y: 80, vx: 5, vy: 3 },
+        goal: { x: 720, y: 520, radius: 22 },
+        walls: [
+            { x: 200, y: 0, w: 22, h: 250 },
+            { x: 200, y: 350, w: 22, h: 250 },
+            { x: 400, y: 100, w: 22, h: 250 },
+            { x: 400, y: 450, w: 22, h: 150 },
+            { x: 600, y: 0, w: 22, h: 220 },
+            { x: 600, y: 320, w: 22, h: 280 }
+        ],
+        hazards: [
+            { x: 300, y: 280, w: 44, h: 44, vx: 2.8, minX: 250, maxX: 520 },
+            { x: 500, y: 280, w: 44, h: 44, vx: -2.8, minX: 250, maxX: 520 }
+        ]
+    },
+    {
+        start: { x: 100, y: 520, vx: 4, vy: -3 },
+        goal: { x: 700, y: 80, radius: 22 },
+        walls: [
+            { x: 180, y: 120, w: 22, h: 360 },
+            { x: 360, y: 0, w: 22, h: 260 },
+            { x: 360, y: 340, w: 22, h: 260 },
+            { x: 540, y: 120, w: 22, h: 360 },
+            { x: 270, y: 280, w: 260, h: 18, vy: 1.8, minY: 250, maxY: 320 }
+        ],
+        hazards: [
+            { x: 260, y: 80, w: 40, h: 40, vy: 2.4, minY: 60, maxY: 460 },
+            { x: 460, y: 480, w: 40, h: 40, vy: -2.4, minY: 60, maxY: 460 }
+        ]
+    }
+
+];
+
+
+// --- ENDLESS LEVEL GENERATION ---
+// Every new stage is assembled from the same simple wall/hazard shapes.
+// A seeded generator makes each run internally consistent.
+function seededRandom() {
+    runSeed = (runSeed * 1664525 + 1013904223) % 4294967296;
+    return runSeed / 4294967296;
+}
+
+function randomInt(min, max) {
+    return Math.floor(seededRandom() * (max - min + 1)) + min;
+}
+
+function generateLevel(index) {
+    const difficulty = Math.min(1, 0.18 + index * 0.018);
+    const walls = [];
+    const hazards = [];
+    const startSide = index % 4;
+
+    const startPositions = [
+        { x: 75, y: 75, vx: 3.5, vy: 2.5 },
+        { x: 725, y: 75, vx: -3.5, vy: 2.5 },
+        { x: 75, y: 525, vx: 3.5, vy: -2.5 },
+        { x: 725, y: 525, vx: -3.5, vy: -2.5 }
+    ];
+    const goalPositions = [
+        { x: 725, y: 525, radius: 22 },
+        { x: 75, y: 525, radius: 22 },
+        { x: 725, y: 75, radius: 22 },
+        { x: 75, y: 75, radius: 22 }
+    ];
+
+    // Create a loose corridor pattern with deliberate gaps.
+    const columns = randomInt(2, 4);
+    for (let c = 0; c < columns; c++) {
+        const x = 160 + c * Math.floor(480 / Math.max(1, columns - 1));
+        const gapY = randomInt(125, 405);
+        const gapSize = randomInt(125, 185);
+        const topHeight = Math.max(45, gapY - gapSize / 2);
+        const bottomY = Math.min(555, gapY + gapSize / 2);
+
+        if (topHeight > 55) {
+            walls.push({ x, y: 0, w: randomInt(18, 28), h: topHeight });
+        }
+        if (bottomY < 545) {
+            walls.push({ x, y: bottomY, w: randomInt(18, 28), h: 600 - bottomY });
+        }
+    }
+
+    // Add a few crossbars, leaving a route around each.
+    const crossbars = randomInt(1, 2 + Math.floor(index / 5));
+    for (let i = 0; i < crossbars; i++) {
+        const y = randomInt(145, 455);
+        const gapX = randomInt(220, 580);
+        const barWidth = randomInt(150, 260);
+        const leftX = Math.max(30, gapX - barWidth);
+        const rightX = Math.min(770, gapX + barWidth);
+        if (gapX - leftX > 35) {
+            walls.push({ x: leftX, y, w: gapX - leftX - 35, h: 18 });
+        }
+        if (rightX - gapX > 35) {
+            walls.push({ x: gapX + 35, y, w: rightX - gapX - 35, h: 18 });
+        }
+    }
+
+    // Hazards become more numerous, but remain bounded.
+    const hazardCount = Math.min(7, 1 + Math.floor(index / 2) + randomInt(0, 1));
+    for (let i = 0; i < hazardCount; i++) {
+        const size = randomInt(30, 44);
+        const hazard = {
+            x: randomInt(150, 650),
+            y: randomInt(100, 500),
+            w: size,
+            h: size
+        };
+        if (seededRandom() < 0.55) {
+            hazard.vx = (seededRandom() < 0.5 ? -1 : 1) * (1.1 + difficulty * 2.2);
+            hazard.minX = Math.max(35, hazard.x - randomInt(35, 100));
+            hazard.maxX = Math.min(765 - size, hazard.x + randomInt(35, 100));
+        } else {
+            hazard.vy = (seededRandom() < 0.5 ? -1 : 1) * (1.1 + difficulty * 2.2);
+            hazard.minY = Math.max(35, hazard.y - randomInt(35, 90));
+            hazard.maxY = Math.min(565 - size, hazard.y + randomInt(35, 90));
+        }
+        hazards.push(hazard);
+    }
+
+    const start = { ...startPositions[startSide] };
+    const goal = { ...goalPositions[startSide] };
+
+    // Keep the opening and destination areas clear enough to avoid instant collisions.
+    const clearOfStart = rect => {
+        const dx = Math.max(rect.x - start.x, 0, start.x - (rect.x + rect.w));
+        const dy = Math.max(rect.y - start.y, 0, start.y - (rect.y + rect.h));
+        return Math.hypot(dx, dy) > 85;
+    };
+    const clearOfGoal = rect => {
+        const dx = Math.max(rect.x - goal.x, 0, goal.x - (rect.x + rect.w));
+        const dy = Math.max(rect.y - goal.y, 0, goal.y - (rect.y + rect.h));
+        return Math.hypot(dx, dy) > 85;
+    };
+
+    return {
+        start,
+        goal,
+        walls: walls.filter(clearOfStart).filter(clearOfGoal),
+        hazards: hazards.filter(clearOfStart).filter(clearOfGoal)
+    };
+}
+
+// Upgrade Choices Pool
+let currentUpgrades = [];
+
+function loadLevel(index) {
+    if (!rollSound.paused) rollSound.pause();
+    while (index >= levels.length) {
+        levels.push(generateLevel(levels.length));
+        generatedLevelCount++;
+    }
+    const lvl = levels[index];
+    ball.x = lvl.start.x;
+    ball.y = lvl.start.y;
+    ball.vx = lvl.start.vx;
+    ball.vy = lvl.start.vy;
+    ball.spin = 0;
+    isStasis = false;
+    stasisCooldownTimer = 0;
+    chargeX = 0;
+    chargeY = 0;
+    hitCount = 0;
+    particles = [];
+    trailPoints = [];
+    collisionFlash = 0;
+    goalPulse = 0;
+    lastBallX = ball.x;
+    lastBallY = ball.y;
+    gameState = 'PLAYING';
+}
+
+function triggerLevelComplete() {
+    if (!rollSound.paused) rollSound.pause();
+    winSound.currentTime = 0;
+    winSound.play().catch(e => {});
+
+    const options = [
+        // Stasis upgrades
+        { title: "+0.5s Stasis Duration", desc: "Increases how long Stasis lasts", action: () => maxStasisTime = Math.min(240, maxStasisTime + 30) },
+        { title: "Stasis Battery", desc: "Adds time and slightly reduces cooldown", action: () => { maxStasisTime = Math.min(240, maxStasisTime + 15); stasisCooldownMax = Math.max(24, stasisCooldownMax - 8); } },
+        { title: "Quick Recovery", desc: "Shortens the wait between Stasis uses", action: () => stasisCooldownMax = Math.max(24, stasisCooldownMax - 16) },
+        { title: "Stasis Efficiency", desc: "Reduces cooldown and adds a little Stasis time", action: () => { stasisCooldownMax = Math.max(24, stasisCooldownMax - 8); maxStasisTime = Math.min(240, maxStasisTime + 10); } },
+
+        // Launch and movement upgrades
+        { title: "Stronger Launch Force", desc: "Increases kinetic impact multiplier", action: () => forceMultiplier = Math.min(5.5, forceMultiplier + 0.4) },
+        { title: "Precision Steering", desc: "Makes directional charges more effective", action: () => forceMultiplier = Math.min(5.5, forceMultiplier + 0.2) },
+        { title: "Max Speed Boost", desc: "Raises your maximum velocity", action: () => ball.maxSpeed = Math.min(54, ball.maxSpeed + 6) },
+        { title: "Overdrive", desc: "A larger boost to maximum speed", action: () => ball.maxSpeed = Math.min(54, ball.maxSpeed + 10) },
+        { title: "Momentum Reserve", desc: "Raises your minimum rolling speed", action: () => ball.minSpeed = Math.min(5, ball.minSpeed + 0.35) },
+        { title: "Low-Drag Coating", desc: "Preserves momentum for longer", action: () => ball.friction = Math.min(0.9995, ball.friction + 0.001) },
+        { title: "Impact Dampeners", desc: "Reduces speed lost through friction", action: () => ball.friction = Math.min(0.9995, ball.friction + 0.0007) },
+        { title: "Spin Control", desc: "Reduces unwanted rotational drift", action: () => ball.spin = (ball.spin || 0) * 0.35 },
+        { title: "Stable Core", desc: "Resets spin and steadies movement", action: () => { ball.spin = 0; ball.friction = Math.min(0.9995, ball.friction + 0.0004); } },
+
+        // Goal and special upgrades
+        { title: "Wider Goal Capture", desc: "Increases the goal radius", action: () => { for (const l of levels) l.goal.radius = Math.min(48, l.goal.radius + 4); } },
+        { title: "Lucky Bounce", desc: "Adds a little extra speed after collisions", action: () => ball.maxSpeed = Math.min(54, ball.maxSpeed + 3) },
+        { title: "Emergency Reserve", desc: "Adds extra time to your next Stasis", action: () => maxStasisTime = Math.min(240, maxStasisTime + 20) },
+        { title: "Kinetic Mastery", desc: "Improves launch force and momentum", action: () => { forceMultiplier = Math.min(5.5, forceMultiplier + 0.25); ball.friction = Math.min(0.9995, ball.friction + 0.0004); } }
+    ];
+
+    // Randomize the pool so each level offers three different upgrade choices.
+    currentUpgrades = options.sort(() => Math.random() - 0.5).slice(0, 3);
+    gameState = 'UPGRADE';
+}
+
+function toggleStasis() {
+    if (gameState !== 'PLAYING') return;
+    startAudio();
+
+    if (!isStasis) {
+        if (stasisCooldownTimer > 0) return;
+
+        isStasis = true;
+        stasisTimer = maxStasisTime;
+        chargeX = 0;
+        chargeY = 0;
+        hitCount = 0;
+        shakeAmount = 4;
+        addParticles(ball.x, ball.y, 12, "#ffd700", 2.8);
+
+        if (!rollSound.paused) rollSound.pause();
+        stasisSound.currentTime = 0;
+        stasisSound.play().catch(e => {});
+    } else {
+        releaseStasis();
+    }
+}
+
+function releaseStasis() {
+    isStasis = false;
+    stasisCooldownTimer = stasisCooldownMax;
+    if (hitCount > 0) {
+        ball.vx = chargeX;
+        ball.vy = chargeY;
+        
+        const speed = Math.hypot(ball.vx, ball.vy);
+        if (speed > ball.maxSpeed) {
+            ball.vx = (ball.vx / speed) * ball.maxSpeed;
+            ball.vy = (ball.vy / speed) * ball.maxSpeed;
+        }
+        shakeAmount = Math.min(hitCount * 1.5, 15);
+        addParticles(ball.x, ball.y, 10, "#ffd700", 3.2);
+    }
+    chargeX = 0;
+    chargeY = 0;
+    hitCount = 0;
+
+    launchSound.currentTime = 0;
+    launchSound.play().catch(e => {});
+}
+
+window.addEventListener('keydown', (e) => {
+    startAudio();
+    if (e.repeat) return;
+
+    if (gameState === 'PLAYING') {
+        if (e.code === 'Space') {
+            e.preventDefault();
+            toggleStasis();
+        } else if (e.code === 'KeyR') {
+            loadLevel(currentLevel);
+        }
+
+        if (isStasis) {
+            let hit = false;
+            if (e.code === 'ArrowUp' || e.code === 'KeyW') { chargeY -= forceMultiplier; hit = true; }
+            if (e.code === 'ArrowDown' || e.code === 'KeyS') { chargeY += forceMultiplier; hit = true; }
+            if (e.code === 'ArrowLeft' || e.code === 'KeyA') { chargeX -= forceMultiplier; hit = true; }
+            if (e.code === 'ArrowRight' || e.code === 'KeyD') { chargeX += forceMultiplier; hit = true; }
+
+            if (hit) {
+                hitCount++;
+                const inputCross = ball.vx * chargeY - ball.vy * chargeX;
+                ball.spin = (ball.spin || 0) + Math.max(-1, Math.min(1, inputCross * 0.0008));
+                shakeAmount = 3;
+            }
+        }
+    } else if (gameState === 'UPGRADE') {
+        if (e.key === '1' && currentUpgrades[0]) {
+            currentUpgrades[0].action();
+            currentLevel++;
+            loadLevel(currentLevel);
+        } else if (e.key === '2' && currentUpgrades[1]) {
+            currentUpgrades[1].action();
+            currentLevel++;
+            loadLevel(currentLevel);
+        } else if (e.key === '3' && currentUpgrades[2]) {
+            currentUpgrades[2].action();
+            currentLevel++;
+            loadLevel(currentLevel);
+        }
+    } else if (gameState === 'WIN' || gameState === 'GAMEOVER') {
+        if (e.code === 'KeyR') {
+            currentLevel = 0;
+            runSeed = Math.floor(Math.random() * 1_000_000);
+            levels.splice(15);
+            generatedLevelCount = 0;
+            maxStasisTime = 60;
+            stasisCooldownMax = 120;
+            forceMultiplier = 1.8;
+            ball.friction = 0.995;
+            ball.maxSpeed = 24;
+            loadLevel(currentLevel);
+        }
+    }
+});
+
+function checkRectCollision(rect) {
+    let closestX = Math.max(rect.x, Math.min(ball.x, rect.x + rect.w));
+    let closestY = Math.max(rect.y, Math.min(ball.y, rect.y + rect.h));
+    let dx = ball.x - closestX;
+    let dy = ball.y - closestY;
+    let distance = Math.hypot(dx, dy);
+
+    if (distance < ball.radius) {
+        return { collided: true, dx, dy, distance };
+    }
+    return { collided: false };
+}
+
+
+// Moving walls and hazards use the same shapes and colors as stationary ones.
+// They reverse direction at their configured limits.
+function moveObstacles(rectangles) {
+    for (const rect of rectangles) {
+        if (rect.vx) {
+            rect.x += rect.vx;
+            if (rect.minX !== undefined && rect.x <= rect.minX) {
+                rect.x = rect.minX;
+                rect.vx = Math.abs(rect.vx);
+            } else if (rect.maxX !== undefined && rect.x >= rect.maxX) {
+                rect.x = rect.maxX;
+                rect.vx = -Math.abs(rect.vx);
+            }
+        }
+        if (rect.vy) {
+            rect.y += rect.vy;
+            if (rect.minY !== undefined && rect.y <= rect.minY) {
+                rect.y = rect.minY;
+                rect.vy = Math.abs(rect.vy);
+            } else if (rect.maxY !== undefined && rect.y >= rect.maxY) {
+                rect.y = rect.maxY;
+                rect.vy = -Math.abs(rect.vy);
+            }
+        }
+    }
+}
+
+
+// --- VISUAL FEEDBACK ---
+function addParticles(x, y, count, color, force = 2.4) {
+    for (let i = 0; i < count; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 0.5 + Math.random() * force;
+        particles.push({
+            x, y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            life: 18 + Math.random() * 18,
+            maxLife: 36,
+            size: 1.5 + Math.random() * 2.5,
+            color
+        });
+    }
+}
+
+function updateEffects() {
+    frame++;
+    goalPulse += 0.055;
+    if (collisionFlash > 0) collisionFlash *= 0.82;
+
+    for (const p of particles) {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vx *= 0.97;
+        p.vy *= 0.97;
+        p.life--;
+    }
+    particles = particles.filter(p => p.life > 0).slice(-180);
+
+    if (!isStasis && gameState === 'PLAYING') {
+        trailPoints.push({ x: ball.x, y: ball.y, life: 12 });
+        if (trailPoints.length > 9) trailPoints.shift();
+    }
+    for (const point of trailPoints) point.life--;
+    trailPoints = trailPoints.filter(point => point.life > 0);
+}
+
+function drawEffects() {
+    // A restrained trail makes movement easier to read without changing the design.
+    for (const point of trailPoints) {
+        ctx.globalAlpha = (point.life / 12) * 0.22;
+        ctx.fillStyle = "#3498db";
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, ball.radius * 0.55, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    for (const p of particles) {
+        ctx.globalAlpha = Math.max(0, p.life / p.maxLife);
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+}
+
+function update() {
+    if (gameState !== 'PLAYING') return;
+
+    if (shakeAmount > 0.5) shakeAmount *= 0.85;
+    if (stasisCooldownTimer > 0) stasisCooldownTimer--;
+
+    if (isStasis) {
+        if (!rollSound.paused) rollSound.pause();
+        stasisTimer--;
+        if (stasisTimer <= 0) {
+            releaseStasis();
+        }
+        return; 
+    }
+
+    const activeLevel = levels[currentLevel];
+    moveObstacles(activeLevel.walls);
+    moveObstacles(activeLevel.hazards);
+
+    // Slightly richer momentum model: rolling drag, spin decay, and a tiny curve.
+    ball.spin = (ball.spin || 0) * 0.985;
+    const speedBeforeDrag = Math.hypot(ball.vx, ball.vy);
+    const curve = Math.max(-0.035, Math.min(0.035, (ball.spin || 0) * 0.002));
+    const oldVx = ball.vx;
+    ball.vx = (ball.vx * Math.cos(curve) - ball.vy * Math.sin(curve)) * ball.friction;
+    ball.vy = (oldVx * Math.sin(curve) + ball.vy * Math.cos(curve)) * ball.friction;
+    const currentSpeed = Math.hypot(ball.vx, ball.vy);
+    if (currentSpeed < ball.minSpeed && currentSpeed > 0) {
+        ball.vx = (ball.vx / currentSpeed) * ball.minSpeed;
+        ball.vy = (ball.vy / currentSpeed) * ball.minSpeed;
+    }
+
+    // Play/Manage rolling sound based on movement
+    if (currentSpeed > 0.5 && gameState === 'PLAYING') {
+        if (rollSound.paused) rollSound.play().catch(e => {});
+    } else {
+        if (!rollSound.paused) rollSound.pause();
+    }
+
+    ball.x += ball.vx;
+    ball.y += ball.vy;
+
+    if (ball.x - ball.radius < 0) { ball.x = ball.radius; ball.vx *= -1; playBounce(); }
+    else if (ball.x + ball.radius > canvas.width) { ball.x = canvas.width - ball.radius; ball.vx *= -1; playBounce(); }
+    if (ball.y - ball.radius < 0) { ball.y = ball.radius; ball.vy *= -1; playBounce(); }
+    else if (ball.y + ball.radius > canvas.height) { ball.y = canvas.height - ball.radius; ball.vy *= -1; playBounce(); }
+
+    const lvl = levels[currentLevel];
+
+    for (let wall of lvl.walls) {
+        let res = checkRectCollision(wall);
+        if (res.collided) {
+            if (Math.abs(res.dx) > Math.abs(res.dy)) {
+                ball.x += (res.dx > 0 ? 1 : -1) * (ball.radius - res.distance + 0.5);
+                ball.vx *= -1.02;
+            } else {
+                ball.y += (res.dy > 0 ? 1 : -1) * (ball.radius - res.distance + 0.5);
+                ball.vy *= -1.02;
+            }
+            const impactSpeed = Math.hypot(ball.vx, ball.vy);
+            if (impactSpeed > ball.maxSpeed) {
+                ball.vx = (ball.vx / impactSpeed) * ball.maxSpeed;
+                ball.vy = (ball.vy / impactSpeed) * ball.maxSpeed;
+            }
+            collisionFlash = 1;
+            addParticles(ball.x, ball.y, 5, "#a0a0b8", 1.8);
+            playBounce();
+        }
+    }
+
+    for (let hazard of lvl.hazards) {
+        if (checkRectCollision(hazard).collided) {
+            addParticles(ball.x, ball.y, 14, "#e74c3c", 3);
+            if (!rollSound.paused) rollSound.pause();
+            shakeAmount = 15;
+            loadLevel(currentLevel);
+            return;
+        }
+    }
+
+    const distToGoal = Math.hypot(ball.x - lvl.goal.x, ball.y - lvl.goal.y);
+    if (distToGoal < ball.radius + lvl.goal.radius) {
+        triggerLevelComplete();
+    }
+}
+
+function drawArrow(fromX, fromY, toX, toY, color) {
+    const headlen = 15;
+    const angle = Math.atan2(toY - fromY, toX - fromX);
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(fromX, fromY);
+    ctx.lineTo(toX, toY);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(toX, toY);
+    ctx.lineTo(toX - headlen * Math.cos(angle - Math.PI / 6), toY - headlen * Math.sin(angle - Math.PI / 6));
+    ctx.lineTo(toX - headlen * Math.cos(angle + Math.PI / 6), toY - headlen * Math.sin(angle + Math.PI / 6));
+    ctx.closePath();
+    ctx.fill();
+}
+
+function draw() {
+    ctx.save();
+    if (shakeAmount > 0.5) {
+        ctx.translate((Math.random() - 0.5) * shakeAmount, (Math.random() - 0.5) * shakeAmount);
+    }
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (collisionFlash > 0.02) {
+        ctx.fillStyle = `rgba(255,255,255,${collisionFlash * 0.035})`;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    if (gameState === 'PLAYING' || gameState === 'UPGRADE') {
+        const lvl = levels[currentLevel];
+
+        ctx.fillStyle = "rgba(255, 255, 255, 0.08)";
+        ctx.font = "bold 48px sans-serif";
+        ctx.fillText(`LEVEL ${currentLevel + 1}`, 30, 60);
+
+        ctx.beginPath();
+        const pulseRadius = lvl.goal.radius + Math.sin(goalPulse) * 2;
+        ctx.arc(lvl.goal.x, lvl.goal.y, pulseRadius, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(46, 204, 113, 0.2)";
+        ctx.fill();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = "#2ecc71";
+        ctx.stroke();
+
+        ctx.fillStyle = "#4a4a68";
+        for (let wall of lvl.walls) ctx.fillRect(wall.x, wall.y, wall.w, wall.h);
+
+        ctx.fillStyle = "#e74c3c";
+        for (let hazard of lvl.hazards) ctx.fillRect(hazard.x, hazard.y, hazard.w, hazard.h);
+
+        drawEffects();
+
+        if (isStasis) {
+            const progress = stasisTimer / maxStasisTime;
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, ball.radius + 10, -Math.PI / 2, (-Math.PI / 2) + (Math.PI * 2 * progress));
+            ctx.strokeStyle = "#ffd700";
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            const mag = Math.hypot(chargeX, chargeY);
+            if (mag > 0) {
+                let arrowColor = hitCount > 8 ? "#ff2a2a" : (hitCount > 4 ? "#ff8c00" : "#ffd700");
+                const arrowLength = Math.min(mag * 12, 180);
+                drawArrow(ball.x, ball.y, ball.x + (chargeX / mag) * arrowLength, ball.y + (chargeY / mag) * arrowLength, arrowColor);
+            }
+        }
+
+        if (!isStasis && stasisCooldownTimer > 0) {
+            const cdProgress = stasisCooldownTimer / stasisCooldownMax;
+            ctx.beginPath();
+            ctx.arc(ball.x, ball.y, ball.radius + 8, -Math.PI / 2, (-Math.PI / 2) + (Math.PI * 2 * (1 - cdProgress)));
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+
+        ctx.beginPath();
+        ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+        if (isStasis) {
+            ctx.fillStyle = "#ffd700";
+            ctx.shadowColor = "#ffd700";
+            ctx.shadowBlur = 15;
+        } else {
+            ctx.fillStyle = "#3498db";
+            ctx.shadowBlur = 0;
+        }
+        ctx.fill();
+        ctx.shadowBlur = 0;
+    }
+
+    if (gameState === 'UPGRADE') {
+        ctx.fillStyle = "rgba(18, 18, 24, 0.88)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "bold 28px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("LEVEL CLEAR! CHOOSE AN UPGRADE", canvas.width / 2, 90);
+
+        currentUpgrades.forEach((upg, idx) => {
+            const boxY = 130 + idx * 115;
+            ctx.fillStyle = "#2a2a3d";
+            ctx.fillRect(canvas.width / 2 - 250, boxY, 500, 95);
+            ctx.strokeStyle = "#ffd700";
+            ctx.lineWidth = 2;
+            ctx.strokeRect(canvas.width / 2 - 250, boxY, 500, 95);
+
+            ctx.fillStyle = "#ffd700";
+            ctx.font = "bold 18px sans-serif";
+            ctx.fillText(`[Press ${idx + 1}] ${upg.title}`, canvas.width / 2, boxY + 35);
+
+            ctx.fillStyle = "#a0a0b8";
+            ctx.font = "14px sans-serif";
+            ctx.fillText(upg.desc, canvas.width / 2, boxY + 68);
+        });
+        ctx.textAlign = "left";
+    }
+
+    if (gameState === 'WIN') {
+        ctx.fillStyle = "rgba(18, 18, 24, 0.9)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#2ecc71";
+        ctx.font = "bold 48px sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("VICTORY!", canvas.width / 2, 220);
+        ctx.fillStyle = "#ffffff";
+        ctx.font = "20px sans-serif";
+        ctx.fillText("You completed the run!", canvas.width / 2, 280);
+        ctx.fillStyle = "#ffd700";
+        ctx.fillText("Press [R] to Play Again", canvas.width / 2, 340);
+        ctx.textAlign = "left";
+    }
+
+    ctx.restore();
+}
+
+function gameLoop() {
+    update();
+    updateEffects();
+    draw();
+    requestAnimationFrame(gameLoop);
+}
+
+loadLevel(currentLevel);
+gameLoop();
+</script>
+</body>
+</html>
