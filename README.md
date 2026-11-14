@@ -22,7 +22,7 @@ While in Stasis use the arrow keys/WASD to give the ball power.
 
 
 
-Press Spacebar to shoot the ball. Once the time runs out Stasis will end.
+Press Spacebar to pause/unpause the ball. Once the time runs out Stasis will end.
 
 
 
