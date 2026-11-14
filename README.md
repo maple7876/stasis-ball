@@ -1,99 +1,215 @@
 # Stasis Ball
 
-Stasis Ball is a physics based arcade puzzle game created for **Hack Club Haven**. Guide a moving ball through each level avoid dangers and reach the goal. Use Stasis to pause the ball build a direction and launch the ball toward the opening.
 
-### How to Play
 
-1. The ball moves on its own.
+Stasis ball is a physics arcade puzzle game. Navigate a rolling ball to reach the end of each level while avoiding hazards. Use the stasis ability to freeze the ball and give it a direction.
 
-2. Press Space to activate Stasis. Pause the ball.
 
-3. While Stasis is active use the arrow keys or WASD to build launch force in a direction.
 
-4. Press Space again to release Stasis. Launch the ball. Stasis also ends when its timer runs out.
+# How To Play
 
-5. Reach the goal to clear the level.
 
-6. Choose one of the three upgrades offered after each completed level by pressing 1, 2 or 3.
 
-Avoid the hazards. Touching one restarts the level.
+Move the ball.
 
-### Think Outside the Level
 
-Sometimes the normal approach will not be enough. You may need to break the game exploit its physics or find a way to get past a level. There is no correct solution and no limit to how creative you can be. Experiment with Stasis, momentum and collisions. If you can make it to the goal it counts.
 
-### Controls
+Press Spacebar to activate Stasis.
 
-| Key | Action |
 
-|---|---|
 
-| Space |. Release Stasis |
+While in Stasis use the arrow keys/WASD to give the ball power.
 
-| Arrow keys or WASD | Charge a launch direction while Stasis is active |
 
-| 1, 2 or 3 | Choose an upgrade after clearing a level |
 
-| R | Restart the level |
+Press Spacebar to shoot the ball. Once the time runs out Stasis will end.
 
-### Features
 
-- **Physics based movement:** The ball keeps its momentum. Slows gradually through friction.
 
-- **Stasis ability:** Pause the ball and charge a launch.
+Reach the end of the level.
 
-- **Endless levels:** The game begins with 15 designed levels. After those it generates obstacle layouts.
 
-- **Moving obstacles:** Some walls and hazards move back and forth adding timing challenges.
 
-- **Upgrade choices:** Clear a level to choose one of three selected upgrades.
+Pick one of the 3 upgrades by pressing 1, 2, or 3.
 
-- **Visual effects:** Includes a ball trail, particles, a pulsing goal and screen shake on impacts.
 
-### Upgrades
 
-Upgrades improve parts of the ball and its Stasis ability. Examples include:
+Avoid hazards. If you touch one you will restart the level.
 
-- Stasis duration and shorter cooldowns
 
-- Stronger launches and higher maximum speed
 
-- Better momentum retention
+# Think Outside Of The Box
 
-- Improved control over spin
 
-- A larger goal capture radius
 
-The available choices are randomized after each level so each run can develop differently.
+At times you might have to Think Outside of the box to solve the level. Break the game, abuse the physics engine, and find ways to progress through levels. There is no right answer and there is no limit to how creative you can be. Try experimenting with the Stasis ability, momentum, and collisions. If you can reach the end it counts! Each level is unique to each person.
 
-### How the Code Works
 
-The game is contained in a HTML file. You do not need CSS or JavaScript files.
 
-- **HTML** creates the page, game canvas and control instructions.
+# Controls
 
-- **CSS** styles the page and canvas.
 
-- **JavaScript** runs the game.
 
-- **Canvas drawing** displays the ball, walls, hazards, goal, upgrade screen and visual effects.
+Key
 
-- **Physics and collision logic** update the balls movement and detect contact with walls, hazards and the goal.
 
-- **Stasis logic** pauses movement and converts keyboard input into launch force.
 
-- **Level generation** creates obstacle layouts after the 15 designed levels.
+Action
 
-- **Game loop** repeatedly updates the game and redraws the canvas.
 
-## Running the Game
 
-1. Keep `stasis-ball-prototype.html` on your computer.
+Spacebar
 
-2. Open the file in a web browser.
 
-3. Enjoy!
 
-## Credits
+End Stasis
 
-Created by **Aaqib Mohammed**. *Olaf Rozner**, for **Hack Club Haven**
+
+
+Arrow Keys/WASD
+
+
+
+Give the ball power in a direction while in Stasis
+
+
+
+1/2/3
+
+
+
+Choose an upgrade after beating a level.
+
+
+
+R
+
+
+
+Restart the level.
+
+
+
+# Features
+
+
+
+Physics - The ball will have momentum and gradually slow down due to friction.
+
+
+
+Stasis - Freeze the ball and give it power.
+
+
+
+Unlimited Levels - There are 15 levels to begin with but after that the game will generate obstacle patterns.
+
+
+
+Moving Obstacles - Some obstacles will move back and forth.
+
+
+
+Upgrade Selection - Pick one of 3 chosen upgrades after beating a level.
+
+
+
+Graphics - The ball will have a trail, particles, the goal will pulse and there will be screen shake on impact.
+
+
+
+# Upgrades
+
+
+
+These upgrades will help certain aspects of the ball and Stasis.
+
+
+
+Longer Stasis time and shorter cooldown.
+
+
+
+Stronger shots and faster max speed.
+
+
+
+More momentum.
+
+
+
+More control over spin.
+
+
+
+Larger capture radius on goal.
+
+
+
+The upgrades will be randomised each level.
+
+
+
+# How It Works
+
+
+
+This game is all in one HTML file.
+
+
+
+HTML - Creates the webpage, game canvas and instructions for controls.
+
+
+
+CSS - Styles the webpage and canvas.
+
+
+
+JavaScript - Runs the game.
+
+
+
+Canvas - Draws the ball, walls, hazards, goal, upgrade screen and graphics.
+
+
+
+Physics - Updates the ball movement and detects if the ball has collided with walls, hazards or the goal.
+
+
+
+Stasis - Stops movement and allows keyboard input to give the ball power.
+
+
+
+Level Generation - After the 15 levels have been completed the game will generate obstacle patterns.
+
+
+
+Game Loop - Continuously updates the game and redraws the canvas.
+
+
+
+# How To Play
+
+
+
+Have the file 'stasis-ball-prototype.html' saved onto your computer.
+
+
+
+Open the file in a web browser.
+
+
+
+Have fun!
+
+
+
+# Credits
+
+
+
+Made by Aaqib Mohammed. Olaf Rozner for Hack Club Haven.
+
+Want a se
